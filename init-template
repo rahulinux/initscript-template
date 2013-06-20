@@ -45,6 +45,10 @@ fi
 pids=( $(pgrep -f "$regex") )
 num_pids="${#pids[@]}"
 
+running() {
+    (( num_pids ))
+}
+
 case "$1" in
     start)
         printf 'Starting %s... ' "$cmd_name"
@@ -91,11 +95,11 @@ case "$1" in
         fi
 
         if (( will_fork_itself )) || (( force_will_fork_itself_mode )); then
-            if ! (( num_pids )); then
-                echo "already stopped"
-            else
+            if running; then
                 pkill -f "$regex"
                 printf '%d processes running and signalled, PIDs: %s\n' "$num_pids" "${pids[*]}"
+            else
+                echo "already stopped"
             fi
         fi
     ;;
@@ -115,7 +119,7 @@ case "$1" in
                 echo stopped
             fi
         else
-            if (( num_pids )); then
+            if running; then
                 printf '%d instances are running. PIDs: %s\n' "$num_pids" "${pids[*]}"
             else
                 echo "not running"
