@@ -139,8 +139,10 @@ case "$1" in
     status)
         if ! (( will_fork_itself )); then
             if { read pid < "$pid_file" ; } >/dev/null 2>&1; then
-                if kill -0 "$pid" >/dev/null 2>&1; then
+                if start_time_same "$pid"; then
                     printf 'Running, PID: %d\n' "$pid"
+                elif kill -0 "$pid" >/dev/null 2>&1; then
+                    printf 'A process with PID %d exists, but does not appear to be the one we want\n' "$pid"
                 else
                     printf 'Stopped, but pid file still exists: %s\n' "$pid_file"
                 fi
