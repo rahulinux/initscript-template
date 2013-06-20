@@ -32,6 +32,7 @@ override_kill_regex=''
 script_name="${0##*/}"
 cmd_name="${cmd[0]}"
 pid_file="/var/run/${script_name}.pid"
+time_file="/var/run/${script_name}.time"
 force_will_fork_itself_mode=0
 
 if [[ "$override_kill_regex" ]]; then
@@ -47,6 +48,23 @@ num_pids="${#pids[@]}"
 
 running() {
     (( num_pids ))
+}
+
+pid_start_time() {
+    local pid="$1"
+    awk '{ print $22 }' "/proc/$pid/stat" 2>/dev/null
+}
+
+start_time_same() {
+    local pid="$1"
+    local our_time
+    local their_time
+    local i
+
+    read our_time < "$time_file"
+    their_time="$(pid_start_time "$pid")"
+
+    (( our_time == their_time ))
 }
 
 case "$1" in
@@ -72,6 +90,10 @@ case "$1" in
                     printf 'failed to write PID file: %s\n' "$pid_file"
                     exit 3
                 fi
+                if ! pid_start_time "$!" > "$time_file" 2>/dev/null; then
+                    printf 'failed to write time file: %s\n' "$time_file"
+                    exit 4
+                fi
                 echo ok
             else
                 echo failed
@@ -86,10 +108,19 @@ case "$1" in
                 printf 'PID file unreadable, falling back to pkill: %s\n' "$pid_file"
                 force_will_fork_itself_mode=1
             else
-                if kill "$pid" >/dev/null 2>&1; then
-                    echo ok
+                if start_time_same "$pid"; then
+                    if kill "$pid" >/dev/null 2>&1; then
+                        echo ok
+                    else
+                        echo "not running"
+                    fi
                 else
-                    echo failed
+                    if kill -0 "$pid" >/dev/null 2>&1; then
+                        printf 'We did not start the process with PID %d, aborting\n' "$pid"
+                        exit 4
+                    else
+                        echo "not running"
+                    fi
                 fi
             fi
         fi
