@@ -1,0 +1,129 @@
+#!/bin/bash
+
+### BEGIN INIT INFO
+# Provides:          [ service name ]
+# Required-Start:    [ required boot facilities, see other init scripts for examples ]
+# Required-Stop:     [ required boot facilities ]
+# Should-Start:      [ requested, but not critical boot facilities ]
+# Should-Stop:       [ requested, but not critical boot facilities ]
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: [ short description of service functionality ]
+### END INIT INFO
+
+# Enter the command you wish to run in between the parentheses, exactly as you
+# would enter the command in your shell.
+cmd=( sleep 120 )
+
+# Set this to 1 if what you are executing will immediately fork. In this case,
+# we don't attempt to write a pid (since it won't be valid) among other things.
+# Ideally, don't fork, and reap the benefits. We'll background it ourselves.
+will_fork_itself=0
+
+# If what you want to kill looks different from what you're launching, enter a
+# regex matching the process to kill here. This only matters if you have
+# will_fork_itself on, or we can't find the PID file when we expect it.
+override_kill_regex=''
+
+
+# Ideally, don't edit anything from this point onwards.
+
+
+script_name="${0##*/}"
+cmd_name="${cmd[0]}"
+pid_file="/var/run/${script_name}.pid"
+force_will_fork_itself_mode=0
+
+if [[ "$override_kill_regex" ]]; then
+    regex="$override_kill_regex"
+else
+    # This could be too big of a net. Also it might be interpreted
+    # wrongly cast as a regex. Hooray!
+    regex="$cmd_name"
+fi
+
+pids=( $(pgrep -f "$regex") )
+num_pids="${#pids[@]}"
+
+case "$1" in
+    start)
+        printf 'Starting %s... ' "$cmd_name"
+
+        if { read pid < "$pid_file" ; } >/dev/null 2>&1; then
+            if kill -0 "$pid" >/dev/null 2>&1; then
+                printf 'already running on PID %d\n' "$pid"
+                exit 2
+            fi
+        fi
+
+        if (( will_fork_itself )); then
+            if "${cmd[@]}"; then
+                echo ok
+            else
+                echo failed
+            fi
+        else
+            if "${cmd[@]}" & then
+                if ! { echo "$!" > "$pid_file" ; } >/dev/null 2>&1; then
+                    printf 'failed to write PID file: %s\n' "$pid_file"
+                    exit 3
+                fi
+                echo ok
+            else
+                echo failed
+            fi
+        fi
+    ;;
+    stop)
+        printf 'Stopping %s... ' "$cmd_name"
+
+        if ! (( will_fork_itself )); then
+            if ! read pid < "$pid_file" >/dev/null 2>&1; then
+                printf 'PID file unreadable, falling back to pkill: %s\n' "$pid_file"
+                force_will_fork_itself_mode=1
+            else
+                if kill "$pid" >/dev/null 2>&1; then
+                    echo ok
+                else
+                    echo failed
+                fi
+            fi
+        fi
+
+        if (( will_fork_itself )) || (( force_will_fork_itself_mode )); then
+            if ! (( num_pids )); then
+                echo "already stopped"
+            else
+                pkill -f "$regex"
+                printf '%d processes running and signalled, PIDs: %s\n' "$num_pids" "${pids[*]}"
+            fi
+        fi
+    ;;
+    restart)
+        "$0" stop
+        "$0" start
+    ;;
+    status)
+        if ! (( will_fork_itself )); then
+            if read pid < "$pid_file" >/dev/null 2>&1; then
+                if kill -0 "$pid" >/dev/null 2>&1; then
+                    printf 'Running, PID: %d\n' "$pid"
+                else
+                    printf 'Stopped, but pid file still exists: %s\n' "$pid_file"
+                fi
+            else
+                echo stopped
+            fi
+        else
+            if (( num_pids )); then
+                printf '%d instances are running. PIDs: %s\n' "$num_pids" "${pids[*]}"
+            else
+                echo "not running"
+            fi
+        fi
+    ;;
+    *)
+        printf 'Usage: %s {status|start|stop|restart}\n' "$0"
+        exit 1
+    ;;
+esac
