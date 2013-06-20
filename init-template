@@ -78,7 +78,7 @@ case "$1" in
         printf 'Stopping %s... ' "$cmd_name"
 
         if ! (( will_fork_itself )); then
-            if ! read pid < "$pid_file" >/dev/null 2>&1; then
+            if ! { read pid < "$pid_file" ; } >/dev/null 2>&1; then
                 printf 'PID file unreadable, falling back to pkill: %s\n' "$pid_file"
                 force_will_fork_itself_mode=1
             else
@@ -105,7 +105,7 @@ case "$1" in
     ;;
     status)
         if ! (( will_fork_itself )); then
-            if read pid < "$pid_file" >/dev/null 2>&1; then
+            if { read pid < "$pid_file" ; } >/dev/null 2>&1; then
                 if kill -0 "$pid" >/dev/null 2>&1; then
                     printf 'Running, PID: %d\n' "$pid"
                 else
