@@ -114,13 +114,11 @@ case "$1" in
                     else
                         echo "not running"
                     fi
+                elif kill -0 "$pid" >/dev/null 2>&1; then
+                    printf 'We did not start the process with PID %d, aborting\n' "$pid"
+                    exit 4
                 else
-                    if kill -0 "$pid" >/dev/null 2>&1; then
-                        printf 'We did not start the process with PID %d, aborting\n' "$pid"
-                        exit 4
-                    else
-                        echo "not running"
-                    fi
+                    echo "not running"
                 fi
             fi
         fi
